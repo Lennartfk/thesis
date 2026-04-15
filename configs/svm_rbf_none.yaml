@@ -1,0 +1,13 @@
+dataset_name: SEED-VIG
+feature_path: data/SEED_VIG/features/seedvig_spectral_features.csv
+output_dir: data/results/experiments
+mlflow_tracking_uri: mlruns
+mlflow_experiment_name: seedvig_loso
+feature_set_name: spectral_bandpower_mean_std
+preprocessing_version: seedvig_raw_filter_1_50_epoch_8s_metadata_v1
+model_name: svm_rbf
+adaptation_name: none
+seed: 42
+alert_threshold: 0.35
+drowsy_threshold: 0.70
+loso_protocol: leave_one_subject_out

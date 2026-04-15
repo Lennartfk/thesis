@@ -26,6 +26,25 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# Dataset
+data/SEED_VIG/
+
+# Local MNE config/cache used for sandboxed test runs
+.mne_home/
+
+# MLflow local tracking store
+mlruns/
+
+# File Extensions
+*.png
+*.jpeg
+*.jpg
+*.GIF
+*.fif
+*.mat
+*.csv
+*.html 
+
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
