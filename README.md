@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 ## Usage
 
-Build reusable preprocessing artifacts first:
+Build preprocessing artifacts first:
 
 ```bash
 python src/data/process_all_data.py
@@ -39,19 +39,6 @@ The feature extraction step writes `data/SEED_VIG/features/seedvig_spectral_feat
 subject_id, recording, epoch_index, perclos, <per-channel band powers>, <optional mean/std>
 ```
 
-PERCLOS labels are attached during epoching and are not reloaded during feature extraction or model training. Feature values are left unnormalized; each SVM uses an sklearn `Pipeline` with `StandardScaler` inside the LOSO training fold.
-
-Run experiments through one MLflow-tracked entrypoint:
-
-```bash
-python -m src.experiments.run_experiment --model svm_rbf --adaptation none --seed 42
-```
-
-Useful registered names:
-
-```text
-Models: svm_linear, svm_rbf, logistic_regression, random_forest, eegnet
-Adaptation: none, coral, tca
 ```
 
 `eegnet` and `tca` are registry placeholders for future implementations; they use the same experiment schema once their fold-local training code is added.
