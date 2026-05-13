@@ -5,10 +5,19 @@ import pandas as pd
 
 from src.experiments.evaluate import binary_metrics, confusion_counts, safe_roc_auc, try_predict_scores
 from src.experiments.registry import get_adaptation, get_model
+from src.tracking.mlflow_utils import log_sklearn_model
+
+
+def subject_sort_key(subject_id):
+    subject_text = str(subject_id)
+    try:
+        return (0, int(subject_text))
+    except ValueError:
+        return (1, subject_text)
 
 
 def iter_loso_splits(df, subject_column="subject_id"):
-    for subject_id in sorted(df[subject_column].astype(str).unique()):
+    for subject_id in sorted(df[subject_column].astype(str).unique(), key=subject_sort_key):
         test_mask = df[subject_column].astype(str) == subject_id
         yield subject_id, np.flatnonzero(~test_mask.to_numpy()), np.flatnonzero(test_mask.to_numpy())
 
@@ -36,9 +45,17 @@ def run_loso_experiment(df, feature_columns, config):
         X_train_adapted, X_test_adapted = adaptation.fit_transform(X_train, X_test, y_train=y_train)
 
         model = get_model(config.model_name, seed=config.seed)
+        if not hasattr(model, "fit") or not hasattr(model, "predict"):
+            raise TypeError(
+                f"Model '{config.model_name}' is not a tabular sklearn-style model. "
+                "Use this LOSO runner for feature-based baselines, or add a deep LOSO "
+                "trainer that loads epoched EEG tensors."
+            )
         model.fit(X_train_adapted, y_train)
         y_pred = model.predict(X_test_adapted)
         y_score = try_predict_scores(model, X_test_adapted)
+
+        log_sklearn_model(model, X_train, artifact_path=f"models_fold_{fold_index:02d}")
 
         metrics = binary_metrics(y_test, y_pred)
         metrics["roc_auc"] = safe_roc_auc(y_test, y_score)

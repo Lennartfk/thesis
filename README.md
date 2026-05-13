@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 ## Usage
 
-Build reusable preprocessing artifacts first:
+Build preprocessing artifacts first:
 
 ```bash
 python src/data/process_all_data.py
@@ -47,11 +47,8 @@ Run experiments through one MLflow-tracked entrypoint:
 python -m src.experiments.run_experiment --model svm_rbf --adaptation none --seed 42
 ```
 
-Useful registered names:
+Run EEGNet on raw epoched tensors with subject-level validation inside each LOSO fold:
 
-```text
-Models: svm_linear, svm_rbf, logistic_regression, random_forest, eegnet
-Adaptation: none, coral, tca
+```bash
+python -m src.experiments.run_experiment --config configs/eegnet_none.yaml
 ```
-
-`eegnet` and `tca` are registry placeholders for future implementations; they use the same experiment schema once their fold-local training code is added.

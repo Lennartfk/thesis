@@ -25,6 +25,10 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+thesis/
+*.slurm
+*.html
+*.csv
 
 # Dataset
 data/SEED_VIG/
@@ -36,13 +40,11 @@ data/SEED_VIG/
 mlruns/
 
 # File Extensions
-*.png
-*.jpeg
-*.jpg
 *.GIF
 *.fif
 *.mat
 *.csv
+*.pt
 *.html 
 
 # PyInstaller

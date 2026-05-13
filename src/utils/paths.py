@@ -8,4 +8,5 @@ RESULTS_DIR = DATA_DIR / "results"
 MLRUNS_DIR = PROJECT_ROOT / "mlruns"
 
 DEFAULT_FEATURE_PATH = SEED_VIG_DIR / "features" / "seedvig_spectral_features.csv"
+DEFAULT_EPOCH_DIR = SEED_VIG_DIR / "epoched"
 DEFAULT_EXPERIMENT_OUTPUT_DIR = RESULTS_DIR / "experiments"
