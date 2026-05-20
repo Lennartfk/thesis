@@ -1,7 +1,6 @@
 from pathlib import Path
 from time import perf_counter
 
-import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import torch
@@ -9,6 +8,7 @@ import torch
 from src.data.eeg_dataset import ChannelStandardizer, infer_epoch_shape, load_epochs_from_index
 from src.experiments.evaluate import binary_metrics, confusion_counts, safe_roc_auc
 from src.experiments.loso import iter_loso_splits
+from src.models.adaptation.adabn import adapt_batch_norm
 from src.models.deep.eegnet import build_eegnet
 from src.training.torch_trainer import predict_torch_model, train_torch_model
 from src.tracking.mlflow_utils import log_torch_model
@@ -60,8 +60,8 @@ def save_checkpoint(output_dir, test_subject_id, model):
 
 
 def run_deep_loso_experiment(epoch_index, config, output_dir):
-    if config.adaptation_name != "none":
-        raise ValueError("Deep adaptation is not implemented yet; use adaptation_name='none' for EEGNet.")
+    if config.adaptation_name not in {"none", "adabn"}:
+        raise ValueError("Deep adaptation supports adaptation_name='none' or 'adabn' for EEGNet.")
 
     n_channels, n_samples, sfreq, channel_names = infer_epoch_shape(config.epoch_dir)
     fold_rows = []
@@ -99,6 +99,14 @@ def run_deep_loso_experiment(epoch_index, config, output_dir):
         model = build_deep_model(config, n_channels=n_channels, n_samples=n_samples)
         fold_start = perf_counter()
         model, history, training_info = train_torch_model(model, X_train, y_train, X_val, y_val, config)
+        adaptation_info = {
+            "adabn_applied": False,
+            "adabn_batch_norm_layers": 0,
+            "adabn_target_samples": 0,
+            "adabn_target_batches": 0,
+        }
+        if config.adaptation_name == "adabn":
+            adaptation_info = adapt_batch_norm(model, X_test, config)
         test_metrics, _, y_pred, y_score = predict_torch_model(model, X_test, y_test, config)
 
         metrics = binary_metrics(y_test, y_pred)
@@ -122,6 +130,7 @@ def run_deep_loso_experiment(epoch_index, config, output_dir):
                 "n_test_alert": int((y_test == 0).sum()),
                 "n_test_drowsy": int((y_test == 1).sum()),
                 "fold_seconds": perf_counter() - fold_start,
+                "adaptation_uses_target_unlabeled": config.adaptation_name == "adabn",
                 "best_epoch": training_info["best_epoch"],
                 "best_val_metric_name": training_info["best_val_metric_name"],
                 "best_val_metric": training_info["best_val_metric"],
@@ -133,6 +142,7 @@ def run_deep_loso_experiment(epoch_index, config, output_dir):
                 "sfreq": sfreq,
             }
         )
+        metrics.update(adaptation_info)
         fold_rows.append(metrics)
 
         history = history.copy()

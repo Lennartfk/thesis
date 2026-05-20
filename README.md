@@ -52,3 +52,10 @@ Run EEGNet on raw epoched tensors with subject-level validation inside each LOSO
 ```bash
 python -m src.experiments.run_experiment --config configs/eegnet_none.yaml
 ```
+
+Run EEGNet with Adaptive Batch Normalization (AdaBN), which updates only BatchNorm
+running statistics from the unlabeled held-out target subject before evaluation:
+
+```bash
+python -m src.experiments.run_experiment --config configs/eegnet_adabn.yaml
+```

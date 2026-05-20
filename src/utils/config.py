@@ -32,6 +32,7 @@ class ExperimentConfig:
     register_model: bool = False
     registry_model_name: str = ""
     validation_subject_strategy: str = "cyclic_next_subject"
+    within_subject_split_strategy: str = "stratified"
     normalization: str = "channel_standard"
     early_stopping_metric: str = "loss"
     batch_size: int = 64
@@ -46,7 +47,6 @@ class ExperimentConfig:
     eegnet_depth_multiplier: int = 2
     eegnet_dropout: float = 0.5
 
-    eval_protocol: str = "leave_one_subject_out"
 
 def _read_config_file(path):
     config_path = Path(path)
@@ -104,6 +104,12 @@ def parse_experiment_args():
         choices=["leave_one_subject_out", "within_subject"],
         help="Evaluation protocol: LOSO or within-subject.",
     )
+    parser.add_argument(
+        "--within-subject-split-strategy",
+        dest="within_subject_split_strategy",
+        choices=["stratified", "chronological"],
+        help="Within-subject split strategy. Stratified is recommended for binary classification.",
+    )
     parser.add_argument("--alert-threshold", type=float, help="PERCLOS alert threshold.")
     parser.add_argument("--drowsy-threshold", type=float, help="PERCLOS drowsy threshold.")
     parser.add_argument(
@@ -130,6 +136,7 @@ def parse_experiment_args():
         "input_type": args.input_type,
         "seed": args.seed,
         "eval_protocol": args.eval_protocol,
+        "within_subject_split_strategy": args.within_subject_split_strategy,
         "max_epochs": args.max_epochs,
         "patience": args.patience,
         "early_stopping_metric": args.early_stopping_metric,

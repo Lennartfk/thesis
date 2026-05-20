@@ -29,9 +29,12 @@ def iter_within_subject_splits(
     test_fraction=0.15,
     subject_column="subject_id",
     time_column="epoch_index",
+    target_column="target",
+    strategy="stratified",
+    seed=42,
 ):
     """
-    Within-subject chronological split: for each subject, split epochs by time order.
+    Within-subject split: for each subject, split their epochs into train/val/test.
 
     Args:
         df: DataFrame with subject_id column
@@ -39,19 +42,92 @@ def iter_within_subject_splits(
         val_fraction: fraction of epochs used for validation
         test_fraction: fraction of epochs used for testing
         subject_column: name of subject ID column
-        time_column: column used for chronological ordering
+        time_column: column used for chronological ordering when strategy="chronological"
+        target_column: target label column used when strategy="stratified"
+        strategy: "stratified" keeps every split class-balanced; "chronological" uses time order
+        seed: random seed used by the stratified splitter
     """
     total_fraction = train_fraction + val_fraction + test_fraction
     if not np.isclose(total_fraction, 1.0):
         raise ValueError("train/val/test fractions must sum to 1.0")
+    if strategy not in {"stratified", "chronological"}:
+        raise ValueError(f"Unknown within-subject split strategy: {strategy}")
+
+    rng = np.random.default_rng(seed)
+
+    def class_split_counts(n_samples):
+        if n_samples < 3:
+            return None
+
+        counts = np.array([1, 1, 1], dtype=int)
+        remaining = n_samples - int(counts.sum())
+        fractions = np.array([train_fraction, val_fraction, test_fraction], dtype=float)
+        raw_additions = remaining * fractions
+        additions = np.floor(raw_additions).astype(int)
+        counts += additions
+
+        leftover = n_samples - int(counts.sum())
+        if leftover > 0:
+            order = np.argsort(-(raw_additions - additions))
+            for split_index in order[:leftover]:
+                counts[split_index] += 1
+
+        return tuple(int(count) for count in counts)
 
     for subject_id in sorted(df[subject_column].astype(str).unique(), key=subject_sort_key):
-        subject_df = df[df[subject_column].astype(str) == subject_id]
+        subject_mask = df[subject_column].astype(str) == subject_id
+        subject_positions = np.flatnonzero(subject_mask.to_numpy())
+        subject_df = df.iloc[subject_positions]
         if subject_df.empty:
             continue
 
-        subject_df = subject_df.sort_values(time_column, kind="stable")
-        subject_indices = subject_df.index.to_numpy()
+        if strategy == "stratified":
+            if subject_df[target_column].nunique() < 2:
+                print(
+                    f"[warn] skipping subject {subject_id}: within-subject binary evaluation "
+                    "requires both alert and drowsy samples."
+                )
+                continue
+
+            train_parts = []
+            val_parts = []
+            test_parts = []
+            skip_subject = False
+
+            for target in sorted(subject_df[target_column].unique()):
+                class_positions = subject_positions[subject_df[target_column].to_numpy() == target]
+                rng.shuffle(class_positions)
+
+                split_counts = class_split_counts(len(class_positions))
+                if split_counts is None:
+                    print(
+                        f"[warn] skipping subject {subject_id}: class {target} has only "
+                        f"{len(class_positions)} retained samples; need at least 3."
+                    )
+                    skip_subject = True
+                    break
+
+                n_train_class, n_val_class, n_test_class = split_counts
+                train_parts.append(class_positions[:n_train_class])
+                val_parts.append(class_positions[n_train_class : n_train_class + n_val_class])
+                test_parts.append(class_positions[n_train_class + n_val_class :])
+
+            if skip_subject:
+                continue
+
+            train_idx = np.concatenate(train_parts)
+            val_idx = np.concatenate(val_parts)
+            test_idx = np.concatenate(test_parts)
+            rng.shuffle(train_idx)
+            rng.shuffle(val_idx)
+            rng.shuffle(test_idx)
+
+            if len(train_idx) > 0 and len(val_idx) > 0 and len(test_idx) > 0:
+                yield subject_id, train_idx, val_idx, test_idx
+            continue
+
+        subject_order = np.argsort(subject_df[time_column].to_numpy(), kind="stable")
+        subject_indices = subject_positions[subject_order]
 
         if len(subject_indices) < 3:
             continue  # Skip subjects with too few epochs

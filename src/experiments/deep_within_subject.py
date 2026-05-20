@@ -63,7 +63,13 @@ def run_deep_within_subject_experiment(epoch_index, config, output_dir):
     start = perf_counter()
 
     # Count total folds for progress bar
-    within_subject_splits = list(iter_within_subject_splits(epoch_index))
+    within_subject_splits = list(
+        iter_within_subject_splits(
+            epoch_index,
+            strategy=config.within_subject_split_strategy,
+            seed=config.seed,
+        )
+    )
     total_folds = len(within_subject_splits)
 
     for fold_index, (subject_id, train_idx, val_idx, test_idx) in tqdm(
@@ -95,6 +101,7 @@ def run_deep_within_subject_experiment(epoch_index, config, output_dir):
                 "test_subject_id": test_subject_id,
                 "val_subject_id": test_subject_id,
                 "train_subjects": test_subject_id,
+                "within_subject_split_strategy": config.within_subject_split_strategy,
                 "n_train": len(train_df),
                 "n_val": len(val_df),
                 "n_test": len(test_df),
