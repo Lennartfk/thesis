@@ -8,27 +8,15 @@ import torch
 
 from src.data.eeg_dataset import ChannelStandardizer, infer_epoch_shape, load_epochs_from_index
 from src.experiments.evaluate import binary_metrics, confusion_counts, safe_roc_auc
-from src.experiments.loso import iter_loso_splits
+from src.experiments.loso import iter_within_subject_splits
 from src.models.deep.eegnet import build_eegnet
 from src.training.torch_trainer import predict_torch_model, train_torch_model
 from src.tracking.mlflow_utils import log_torch_model
 
 
-def choose_validation_subject(test_subject_id, subject_order, strategy="cyclic_next_subject"):
-    if len(subject_order) < 2:
-        raise ValueError("Need at least two subjects to create a subject-level validation split.")
-    if strategy == "cyclic_next_subject":
-        try:
-            current_index = subject_order.index(str(test_subject_id))
-        except ValueError as exc:
-            raise ValueError(f"Test subject {test_subject_id} not found in subject order.") from exc
-        return subject_order[(current_index + 1) % len(subject_order)]
-    raise ValueError(f"Unknown validation subject strategy: {strategy}")
-
-
 def build_deep_model(config, n_channels, n_samples):
     if config.model_name != "eegnet":
-        raise ValueError("The deep LOSO runner currently supports model_name='eegnet'.")
+        raise ValueError("The deep within-subject runner currently supports model_name='eegnet'.")
 
     return build_eegnet(
         seed=config.seed,
@@ -51,17 +39,21 @@ def normalize_fold(X_train, X_val, X_test, normalization):
     return normalizer.transform(X_train), normalizer.transform(X_val), normalizer.transform(X_test)
 
 
-def save_checkpoint(output_dir, test_subject_id, model):
+def save_checkpoint(output_dir, subject_id, fold_num, model):
     checkpoint_dir = Path(output_dir) / "checkpoints"
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint_path = checkpoint_dir / f"eegnet_subject_{test_subject_id}.pt"
+    checkpoint_path = checkpoint_dir / f"eegnet_subject_{subject_id}_fold_{fold_num}.pt"
     torch.save(model.state_dict(), checkpoint_path)
     return checkpoint_path
 
 
-def run_deep_loso_experiment(epoch_index, config, output_dir):
+def run_deep_within_subject_experiment(epoch_index, config, output_dir):
+    """
+    Within-subject experiment: for each subject, split their epochs into train/test.
+    This provides an oracle upper bound on performance (same subject, no domain shift).
+    """
     if config.adaptation_name != "none":
-        raise ValueError("Deep adaptation is not implemented yet; use adaptation_name='none' for EEGNet.")
+        raise ValueError("Deep adaptation is not implemented yet; use adaptation_name='none'.")
 
     n_channels, n_samples, sfreq, channel_names = infer_epoch_shape(config.epoch_dir)
     fold_rows = []
@@ -69,27 +61,18 @@ def run_deep_loso_experiment(epoch_index, config, output_dir):
     history_rows = []
     checkpoint_paths = []
     start = perf_counter()
-    
+
     # Count total folds for progress bar
-    loso_splits = list(iter_loso_splits(epoch_index))
-    total_folds = len(loso_splits)
+    within_subject_splits = list(iter_within_subject_splits(epoch_index))
+    total_folds = len(within_subject_splits)
 
-    # Build ordered list of subjects to allow cyclic validation subject selection
-    subject_order = [str(s) for s, _, _ in loso_splits]
-
-    for fold_index, (subject_id, train_idx, test_idx) in tqdm(list(enumerate(loso_splits, start=1)), total=total_folds, desc="LOSO Folds", unit="fold"):
+    for fold_index, (subject_id, train_idx, val_idx, test_idx) in tqdm(
+        list(enumerate(within_subject_splits, start=1)), total=total_folds, desc="Within-Subject Folds", unit="fold"
+    ):
         test_subject_id = str(subject_id)
-        outer_train_df = epoch_index.iloc[train_idx].reset_index(drop=True)
+        train_df = epoch_index.iloc[train_idx].reset_index(drop=True)
+        val_df = epoch_index.iloc[val_idx].reset_index(drop=True)
         test_df = epoch_index.iloc[test_idx].reset_index(drop=True)
-        val_subject_id = choose_validation_subject(
-            test_subject_id,
-            subject_order,
-            strategy=config.validation_subject_strategy,
-        )
-
-        val_mask = outer_train_df["subject_id"].astype(str) == str(val_subject_id)
-        train_df = outer_train_df.loc[~val_mask].reset_index(drop=True)
-        val_df = outer_train_df.loc[val_mask].reset_index(drop=True)
 
         X_train, y_train, _ = load_epochs_from_index(train_df)
         X_val, y_val, _ = load_epochs_from_index(val_df)
@@ -104,14 +87,14 @@ def run_deep_loso_experiment(epoch_index, config, output_dir):
         metrics = binary_metrics(y_test, y_pred)
         metrics["roc_auc"] = safe_roc_auc(y_test, y_score)
         metrics.update(confusion_counts(y_test, y_pred))
-        train_subjects = sorted(outer_train_df["subject_id"].astype(str).unique())
 
         metrics.update(
             {
                 "fold": fold_index,
-            "test_subject_id": test_subject_id,
-            "val_subject_id": val_subject_id,
-            "train_subjects": ",".join(train_subjects),
+                "subject_id": test_subject_id,
+                "test_subject_id": test_subject_id,
+                "val_subject_id": test_subject_id,
+                "train_subjects": test_subject_id,
                 "n_train": len(train_df),
                 "n_val": len(val_df),
                 "n_test": len(test_df),
@@ -137,8 +120,9 @@ def run_deep_loso_experiment(epoch_index, config, output_dir):
 
         history = history.copy()
         history["fold"] = fold_index
+        history["subject_id"] = test_subject_id
         history["test_subject_id"] = test_subject_id
-        history["val_subject_id"] = val_subject_id
+        history["val_subject_id"] = test_subject_id
         history_rows.append(history)
 
         predictions = test_metadata[["subject_id", "recording", "epoch_index", "perclos", "target"]].copy()
@@ -147,7 +131,7 @@ def run_deep_loso_experiment(epoch_index, config, output_dir):
         predictions["y_score"] = y_score
         prediction_rows.append(predictions)
 
-        checkpoint_paths.append(save_checkpoint(output_dir, test_subject_id, model))
+        checkpoint_paths.append(save_checkpoint(output_dir, test_subject_id, fold_index, model))
         log_torch_model(
             model,
             input_example=torch.zeros((1, n_channels, n_samples), dtype=torch.float32),
@@ -155,7 +139,7 @@ def run_deep_loso_experiment(epoch_index, config, output_dir):
         )
 
         print(
-            f"[{fold_index:02d}] test_subject={test_subject_id} val={val_subject_id} "
+            f"[{fold_index:02d}] subject={test_subject_id} "
             f"acc={metrics['accuracy']:.3f} bal_acc={metrics['balanced_accuracy']:.3f} "
             f"f1={metrics['f1']:.3f} best_epoch={training_info['best_epoch']}"
         )
@@ -163,7 +147,7 @@ def run_deep_loso_experiment(epoch_index, config, output_dir):
     fold_metrics = pd.DataFrame(fold_rows)
     predictions = pd.concat(prediction_rows, ignore_index=True) if prediction_rows else pd.DataFrame()
     history = pd.concat(history_rows, ignore_index=True) if history_rows else pd.DataFrame()
-    print(f"Finished deep LOSO in {perf_counter() - start:.1f}s")
+    print(f"Finished within-subject experiment in {perf_counter() - start:.1f}s")
 
     metadata = {
         "feature_count": int(n_channels * n_samples),

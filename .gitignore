@@ -29,9 +29,11 @@ thesis/
 *.slurm
 *.html
 *.csv
+*.out
 
 # Dataset
 data/SEED_VIG/
+SEED_VIG/
 
 # Local MNE config/cache used for sandboxed test runs
 .mne_home/

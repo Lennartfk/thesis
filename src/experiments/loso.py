@@ -22,6 +22,58 @@ def iter_loso_splits(df, subject_column="subject_id"):
         yield subject_id, np.flatnonzero(~test_mask.to_numpy()), np.flatnonzero(test_mask.to_numpy())
 
 
+def iter_within_subject_splits(
+    df,
+    train_fraction=0.70,
+    val_fraction=0.15,
+    test_fraction=0.15,
+    subject_column="subject_id",
+    time_column="epoch_index",
+):
+    """
+    Within-subject chronological split: for each subject, split epochs by time order.
+
+    Args:
+        df: DataFrame with subject_id column
+        train_fraction: fraction of epochs used for training
+        val_fraction: fraction of epochs used for validation
+        test_fraction: fraction of epochs used for testing
+        subject_column: name of subject ID column
+        time_column: column used for chronological ordering
+    """
+    total_fraction = train_fraction + val_fraction + test_fraction
+    if not np.isclose(total_fraction, 1.0):
+        raise ValueError("train/val/test fractions must sum to 1.0")
+
+    for subject_id in sorted(df[subject_column].astype(str).unique(), key=subject_sort_key):
+        subject_df = df[df[subject_column].astype(str) == subject_id]
+        if subject_df.empty:
+            continue
+
+        subject_df = subject_df.sort_values(time_column, kind="stable")
+        subject_indices = subject_df.index.to_numpy()
+
+        if len(subject_indices) < 3:
+            continue  # Skip subjects with too few epochs
+
+        n_total = len(subject_indices)
+        n_train = max(1, int(n_total * train_fraction))
+        n_val = max(1, int(n_total * val_fraction))
+        n_test = n_total - n_train - n_val
+        if n_test < 1:
+            n_test = 1
+            if n_val > 1:
+                n_val -= 1
+            elif n_train > 1:
+                n_train -= 1
+
+        train_idx = subject_indices[:n_train]
+        val_idx = subject_indices[n_train : n_train + n_val]
+        test_idx = subject_indices[n_train + n_val :]
+
+        if len(train_idx) > 0 and len(val_idx) > 0 and len(test_idx) > 0:
+            yield subject_id, train_idx, val_idx, test_idx
+
 def run_loso_experiment(df, feature_columns, config):
     fold_rows = []
     prediction_rows = []

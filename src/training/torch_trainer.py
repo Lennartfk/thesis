@@ -93,11 +93,15 @@ def train_torch_model(model, X_train, y_train, X_val, y_val, config):
     )
 
     best_state = None
-    best_val_loss = float("inf")
+    best_metric_value = None
     best_epoch = 0
     epochs_without_improvement = 0
     history = []
     start = perf_counter()
+    
+    # Determine if metric should be minimized or maximized
+    metric_name = config.early_stopping_metric
+    minimize_metric = metric_name == "loss"
 
     for epoch in tqdm(range(1, config.max_epochs + 1), desc="Epochs", unit="epoch", leave=False):
         train_metrics, _, _, _ = run_epoch(model, train_loader, criterion, device, optimizer=optimizer)
@@ -108,8 +112,23 @@ def train_torch_model(model, X_train, y_train, X_val, y_val, config):
         row.update({f"val_{key}": value for key, value in val_metrics.items()})
         history.append(row)
 
-        if val_metrics["loss"] < best_val_loss:
-            best_val_loss = val_metrics["loss"]
+        # Check if metric exists in validation metrics
+        if metric_name not in val_metrics:
+            raise KeyError(f"Early stopping metric '{metric_name}' not found in validation metrics. Available: {list(val_metrics.keys())}")
+        
+        current_value = val_metrics[metric_name]
+        
+        # Check for improvement based on metric direction
+        is_improvement = False
+        if best_metric_value is None:
+            is_improvement = True
+        elif minimize_metric:
+            is_improvement = current_value < best_metric_value
+        else:  # maximize metric
+            is_improvement = current_value > best_metric_value
+        
+        if is_improvement:
+            best_metric_value = current_value
             best_epoch = epoch
             best_state = deepcopy(model.state_dict())
             epochs_without_improvement = 0
@@ -125,7 +144,8 @@ def train_torch_model(model, X_train, y_train, X_val, y_val, config):
 
     training_info = {
         "best_epoch": best_epoch,
-        "best_val_loss": best_val_loss,
+        "best_val_metric": best_metric_value,
+        "best_val_metric_name": metric_name,
         "trained_epochs": len(history),
         "training_seconds": perf_counter() - start,
         "device": str(device),

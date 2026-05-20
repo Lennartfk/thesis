@@ -82,6 +82,7 @@ def run_experiment(config):
         elif config.model_family == "deep":
             from src.data.eeg_dataset import build_epoch_index
             from src.experiments.deep_loso import run_deep_loso_experiment
+            from src.experiments.deep_within_subject import run_deep_within_subject_experiment
 
             df = build_epoch_index(
                 config.epoch_dir,
@@ -90,7 +91,12 @@ def run_experiment(config):
             )
             feature_columns = []
             dropped_columns = []
-            fold_metrics, predictions, history, deep_metadata = run_deep_loso_experiment(df, config, output_dir)
+
+            if config.eval_protocol == "within_subject":
+                fold_metrics, predictions, history, deep_metadata = run_deep_within_subject_experiment(df, config, output_dir)
+            else:  # leave_one_subject_out (default)
+                fold_metrics, predictions, history, deep_metadata = run_deep_loso_experiment(df, config, output_dir)
+
             feature_count = deep_metadata["feature_count"]
             extra_artifacts = deep_metadata["checkpoint_paths"]
             mlflow.log_params(

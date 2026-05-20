@@ -12,7 +12,7 @@ class ExperimentConfig:
     feature_path: str = str(DEFAULT_FEATURE_PATH)
     epoch_dir: str = str(DEFAULT_EPOCH_DIR)
     output_dir: str = str(DEFAULT_EXPERIMENT_OUTPUT_DIR)
-    mlflow_tracking_uri: str = str(MLRUNS_DIR)
+    mlflow_tracking_uri: str = f"sqlite:///{MLRUNS_DIR / 'mlflow.db'}"
     mlflow_experiment_name: str = "seedvig_loso"
     run_name: str = ""
     feature_set_name: str = "spectral_bandpower_mean_std"
@@ -24,6 +24,7 @@ class ExperimentConfig:
     seed: int = 42
     alert_threshold: float = 0.35
     drowsy_threshold: float = 0.70
+    eval_protocol: str = "leave_one_subject_out"
     loso_protocol: str = "leave_one_subject_out"
     positive_label: int = 1
     save_predictions: bool = True
@@ -32,6 +33,7 @@ class ExperimentConfig:
     registry_model_name: str = ""
     validation_subject_strategy: str = "cyclic_next_subject"
     normalization: str = "channel_standard"
+    early_stopping_metric: str = "loss"
     batch_size: int = 64
     learning_rate: float = 0.001
     weight_decay: float = 0.0001
@@ -44,6 +46,7 @@ class ExperimentConfig:
     eegnet_depth_multiplier: int = 2
     eegnet_dropout: float = 0.5
 
+    eval_protocol: str = "leave_one_subject_out"
 
 def _read_config_file(path):
     config_path = Path(path)
@@ -85,13 +88,22 @@ def parse_experiment_args():
     parser.add_argument("--epoch-dir", dest="epoch_dir", help="Directory containing epoched FIF files.")
     parser.add_argument("--output-dir", dest="output_dir", help="Directory for result artifacts.")
     parser.add_argument("--run-name", dest="run_name", help="MLflow run name.")
+    parser.add_argument("--mlflow-tracking-uri", dest="mlflow_tracking_uri", help="MLflow tracking URI (e.g., sqlite:////path/to/mlflow.db).")
+    parser.add_argument("--mlflow-experiment-name", dest="mlflow_experiment_name", help="MLflow experiment name.")
     parser.add_argument("--model-family", dest="model_family", choices=["sklearn", "deep"], help="Experiment backend.")
     parser.add_argument("--input-type", dest="input_type", choices=["features", "epochs"], help="Input representation.")
     parser.add_argument("--seed", type=int, help="Random seed.")
     parser.add_argument("--max-epochs", type=int, help="Maximum deep-learning epochs.")
     parser.add_argument("--patience", type=int, help="Early-stopping patience for deep models.")
+    parser.add_argument("--early-stopping-metric", dest="early_stopping_metric", help="Metric to use for early stopping (e.g., loss, balanced_accuracy, roc_auc, f1).")
     parser.add_argument("--batch-size", type=int, help="Batch size for deep models.")
     parser.add_argument("--learning-rate", type=float, help="Learning rate for deep models.")
+    parser.add_argument(
+        "--eval-protocol",
+        dest="eval_protocol",
+        choices=["leave_one_subject_out", "within_subject"],
+        help="Evaluation protocol: LOSO or within-subject.",
+    )
     parser.add_argument("--alert-threshold", type=float, help="PERCLOS alert threshold.")
     parser.add_argument("--drowsy-threshold", type=float, help="PERCLOS drowsy threshold.")
     parser.add_argument(
@@ -117,13 +129,17 @@ def parse_experiment_args():
         "model_family": args.model_family,
         "input_type": args.input_type,
         "seed": args.seed,
+        "eval_protocol": args.eval_protocol,
         "max_epochs": args.max_epochs,
         "patience": args.patience,
+        "early_stopping_metric": args.early_stopping_metric,
         "batch_size": args.batch_size,
         "learning_rate": args.learning_rate,
         "alert_threshold": args.alert_threshold,
         "drowsy_threshold": args.drowsy_threshold,
         "register_model": args.register_model,
         "registry_model_name": args.registry_model_name,
+        "mlflow_tracking_uri": args.mlflow_tracking_uri,
+        "mlflow_experiment_name": args.mlflow_experiment_name,
     }
     return load_config(args.config, overrides=overrides)

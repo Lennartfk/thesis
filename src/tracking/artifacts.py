@@ -290,6 +290,9 @@ def save_validation_test_metric_scatter(output_dir, fold_metrics, history):
         return None
     if "best_epoch" not in fold_metrics.columns or "balanced_accuracy" not in fold_metrics.columns:
         return None
+    subject_column = "test_subject_id" if "test_subject_id" in fold_metrics.columns else "subject_id"
+    if subject_column not in fold_metrics.columns:
+        return None
 
     rows = []
     for _, fold_row in fold_metrics.iterrows():
@@ -301,7 +304,7 @@ def save_validation_test_metric_scatter(output_dir, fold_metrics, history):
         history_row = match.iloc[0]
         rows.append(
             {
-                "test_subject_id": str(fold_row["test_subject_id"]),
+                "test_subject_id": str(fold_row[subject_column]),
                 "val_balanced_accuracy": float(history_row["val_balanced_accuracy"]),
                 "test_balanced_accuracy": float(fold_row["balanced_accuracy"]),
             }
