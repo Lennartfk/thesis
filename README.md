@@ -7,7 +7,7 @@ Three calibration protocols are evaluated:
 - **Chronological Calibration**: Using the first $N$ minutes of a subject's recording.
 - **Sequential Window Calibration**: Sliding a fixed-size calibration window continuously over the data.
 
-## 🛠️ Installation & Setup
+## Installation & Setup
 
 1. **Clone the repository**
    ```bash
@@ -26,7 +26,7 @@ Three calibration protocols are evaluated:
    - Download the raw **SEED-VIG** dataset.
    - Place the raw `.mat` files in `data/SEED_VIG/raw/`.
 
-## 🔄 Data Preprocessing
+## Data Preprocessing
 
 To replicate the data preprocessing pipeline (which filters the raw data, epochs it into 8-second segments, and extracts features):
 
@@ -37,7 +37,7 @@ python src/features/extract_epoch_features.py
 ```
 *Note: The intermediate PERCLOS epochs ($0.35 < \text{PERCLOS} < 0.70$) are dropped during evaluation but retained in the metadata.*
 
-## 🚀 Training the Baseline EEGNet
+## Training the Baseline EEGNet
 
 To train the standard EEGNet model using Leave-One-Subject-Out (LOSO) cross-validation (without any domain adaptation):
 
@@ -50,11 +50,11 @@ sbatch scripts/slurm/final_train_baseline.slurm
 ```
 This will train the baseline model and log results to the `mlruns/` directory using MLflow.
 
-## 🎛️ Running Domain Adaptation Calibration Protocols
+## Running Domain Adaptation Calibration Protocols
 
 Once the baseline is established, you can evaluate the domain adaptation methods (EA and AdaBN) using the three calibration protocols. We sweep across different calibration durations ($N \in \{5, 10, 15, 20, 30, 45, 60, 90\}$ minutes).
 
-**1. Random Sampling (Idealized)**
+**1. Random Sampling**
 ```bash
 sbatch scripts/slurm/final_eval_fraction.slurm
 ```
@@ -68,11 +68,6 @@ sbatch scripts/slurm/final_eval_chronological.slurm
 ```bash
 sbatch scripts/slurm/evaluate_sequential_window.slurm
 ```
-*Note: SLURM scripts are configured to use Slurm Array Jobs for parallel execution. You can inspect the SLURM files for the exact python commands to run them locally.*
-
-## 📊 Reproducing Figures and Statistical Analysis
-
-All figures and statistical analyses used in the thesis can be generated automatically from the experimental outputs. 
 
 **Generate Statistics (Paired T-Tests with FDR correction)**
 ```bash
@@ -84,7 +79,6 @@ To generate all plots (including chronological decays, 3D accuracy surfaces, ada
 ```bash
 sbatch scripts/slurm/generate_all_pdfs.slurm
 ```
-*This script runs `scripts/generate_thesis_figures.py`, which orchestrates all plotting scripts and saves the final PDFs into `data/results/Thesis_Figures/`.*
 
 ## 📁 Repository Structure
 - `configs/` - YAML configuration files for experiments.
