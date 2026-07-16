@@ -34,7 +34,6 @@ def analyze_stats(out_dir="data/results/Dataset_Stats", include_title=True):
             epochs = mne.read_epochs(epoch_path, preload=False, verbose=False)
             metadata = epochs.metadata.copy()
             
-            # Subject ID is parsed from recording name
             metadata['subject_id'] = metadata['recording'].apply(parse_subject_id)
             all_metadata.append(metadata)
             print(f"Loaded {epoch_path.name}")
@@ -43,7 +42,6 @@ def analyze_stats(out_dir="data/results/Dataset_Stats", include_title=True):
 
     full_df = pd.concat(all_metadata, ignore_index=True)
     
-    # Calculate per-subject stats
     subjects = full_df['subject_id'].unique()
     
     for sub in subjects:
@@ -75,7 +73,6 @@ def analyze_stats(out_dir="data/results/Dataset_Stats", include_title=True):
 
     results_df = pd.DataFrame(results)
     
-    # Sort subjects numerically (handling 4_1, 5_2 etc)
     def sort_key(s):
         parts = str(s).split('_')
         return float(parts[0]) + (float(parts[1])/10 if len(parts) > 1 else 0)
@@ -83,7 +80,6 @@ def analyze_stats(out_dir="data/results/Dataset_Stats", include_title=True):
     results_df['Subject_ID_Num'] = results_df['Subject_ID'].apply(sort_key)
     results_df = results_df.sort_values('Subject_ID_Num').drop(columns=['Subject_ID_Num'])
     
-    # Sort full_df to match subject order for boxplot
     full_df['Subject_ID_Num'] = full_df['subject_id'].apply(sort_key)
     full_df = full_df.sort_values('Subject_ID_Num')
     
@@ -91,7 +87,6 @@ def analyze_stats(out_dir="data/results/Dataset_Stats", include_title=True):
     results_df.to_csv(out_path_csv, index=False)
     print(f"\nSaved statistics to {out_path_csv}")
     
-    # --- Plot 1: Stacked Bar Chart (Including Intermediate) ---
     plt.figure(figsize=(12, 6))
     subjects_sorted = results_df['Subject_ID'].astype(str)
     p_alert = results_df['Percent_Alert']
@@ -114,7 +109,6 @@ def analyze_stats(out_dir="data/results/Dataset_Stats", include_title=True):
     plt.savefig(out_path_bar, format="pdf", bbox_inches='tight')
     plt.close()
     
-    # --- Plot 2: Boxplot of Continuous PERCLOS ---
     plt.figure(figsize=(12, 6))
     sns.boxplot(x='subject_id', y='perclos', data=full_df, color='lightblue', fliersize=2)
     plt.axhline(y=0.35, color='#2ca02c', linestyle='--', label='Alert Threshold')
@@ -133,12 +127,9 @@ def analyze_stats(out_dir="data/results/Dataset_Stats", include_title=True):
     
     print(f"Saved figures to {out_dir}")
     
-    # --- Plot 3: Stacked Bar Chart (Filtered: Alert vs Drowsy only) ---
     plt.figure(figsize=(12, 6))
     
-    # Calculate normalized percentages for filtered data
     filtered_total = p_alert + p_drowsy
-    # Avoid division by zero
     p_alert_norm = np.where(filtered_total > 0, (p_alert / filtered_total) * 100, 0)
     p_drowsy_norm = np.where(filtered_total > 0, (p_drowsy / filtered_total) * 100, 0)
     

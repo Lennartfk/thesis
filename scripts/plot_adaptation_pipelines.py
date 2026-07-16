@@ -33,18 +33,14 @@ def draw_epoch_array(ax, x, y, w, h, colors, labels=None):
 def plot_fraction_pipeline(out_path):
     fig, ax = setup_figure("Adaptation Fraction Sweep (The Upper Bound / Random CV)")
     
-    # Outer Loop
     draw_box(ax, 20, 85, 60, 8, "Iterate through Subjects (1 to 21)\nExtract Thresholded 'Good' Epochs", "#e8f4f8")
     draw_arrow(ax, 50, 85, 50, 78)
     
-    # Shuffle step
     draw_box(ax, 20, 70, 60, 8, "Randomly Shuffle all Epochs for Subject", "#ffeaa7")
     draw_arrow(ax, 50, 70, 50, 63)
     
-    # Inner Loop
     draw_box(ax, 10, 50, 80, 13, "For each target fraction (e.g. 30%):\nPerform 10-Fold Cross Validation over shuffled array", "#f0f0f0")
     
-    # Epoch arrays inside inner loop
     colors_run1 = ['#ff7675']*3 + ['#74b9ff']*7
     draw_epoch_array(ax, 15, 56, 70, 4, colors_run1, labels=["Adapt"]*3 + ["Evaluate"]*7)
     ax.text(12, 58, "Run 1", ha='right', va='center', fontweight='bold')
@@ -67,18 +63,14 @@ def plot_fraction_pipeline(out_path):
 def plot_fixed_window_pipeline(out_path):
     fig, ax = setup_figure("Fixed Window Sweep (The Real-Time Continuous Simulation)")
     
-    # Outer Loop
     draw_box(ax, 20, 85, 60, 8, "Iterate through Subjects (1 to 21)\nExtract Thresholded 'Good' Epochs", "#e8f4f8")
     draw_arrow(ax, 50, 85, 50, 78)
     
-    # NO Shuffle step
     draw_box(ax, 20, 70, 60, 8, "Keep Epochs in Exact Chronological Order\n(DO NOT SHUFFLE)", "#55efc4")
     draw_arrow(ax, 50, 70, 50, 63)
     
-    # Inner Loop
     draw_box(ax, 10, 48, 80, 15, "For each target window size (e.g. 5 minutes = 37 contiguous epochs):\nPick 10 Random Starting Indexes to find the Average", "#f0f0f0")
     
-    # Epoch arrays inside inner loop
     colors_run1 = ['#74b9ff']*2 + ['#ff7675']*3 + ['#74b9ff']*5
     draw_epoch_array(ax, 15, 56, 70, 4, colors_run1, labels=["Eval"]*2 + ["Adapt"]*3 + ["Evaluate"]*5)
     ax.text(12, 58, "Run 1", ha='right', va='center', fontweight='bold')
@@ -101,25 +93,19 @@ def plot_fixed_window_pipeline(out_path):
 def plot_chronological_pipeline(out_path):
     fig, ax = setup_figure("Chronological Sweep (The Calibration Phase Simulation)")
     
-    # Outer Loop
     draw_box(ax, 20, 85, 60, 8, "Iterate through Subjects (1 to 21)\nExtract Thresholded 'Good' Epochs", "#e8f4f8")
     draw_arrow(ax, 50, 85, 50, 78)
     
-    # NO Shuffle step
     draw_box(ax, 20, 70, 60, 8, "Keep Epochs in Exact Chronological Order\n(DO NOT SHUFFLE)", "#55efc4")
     draw_arrow(ax, 50, 70, 50, 63)
     
-    # Inner Loop
     draw_box(ax, 10, 44, 80, 19, "For each target clock time (e.g. 10 minutes):\nStrictly use epochs before 10:00 to predict epochs after 10:00", "#f0f0f0")
     
-    # Timeline
     ax.plot([15, 85], [56, 56], color='black', lw=2)
     ax.plot([30, 30], [53, 59], color='red', lw=3, ls='--')
     ax.text(30, 61, "Threshold: 10:00", color='red', ha='center', fontweight='bold')
     
-    # Epoch arrays inside inner loop
     colors_run1 = ['#ff7675']*2 + ['#74b9ff']*8
-    # draw boxes corresponding to timeline
     draw_epoch_array(ax, 15, 54, 70, 4, colors_run1, labels=["Adapt"]*2 + ["Evaluate"]*8)
     ax.text(12, 56, "Single\nRun", ha='right', va='center', fontweight='bold')
     

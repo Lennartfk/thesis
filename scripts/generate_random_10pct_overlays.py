@@ -46,17 +46,14 @@ def generate_overlays(out_dir="data/results/Final_Plots_All/Subject_Overlays_Ran
     for subject_id in subjects:
         print(f"Processing Subject {subject_id}...")
         try:
-            # 1. Load Data
             test_df = epoch_index[epoch_index['subject_id'] == subject_id].reset_index(drop=True)
             X_test, y_test, test_metadata = load_epochs_from_index(test_df)
             
-            # 2. Split Data (Random 10% individual epochs)
             n_total = len(X_test)
             rng = random.Random(f"{config.seed}:{subject_id}")
             indices = list(range(n_total))
             rng.shuffle(indices)
             
-            # Take exactly 10% of individual epochs randomly
             n_adapt = int(0.10 * n_total)
             adapt_indices = np.array(indices[:n_adapt])
             eval_indices = np.array(indices[n_adapt:])
@@ -67,24 +64,12 @@ def generate_overlays(out_dir="data/results/Final_Plots_All/Subject_Overlays_Ran
             meta_adapt = test_metadata.iloc[adapt_indices].reset_index(drop=True)
             meta_eval = test_metadata.iloc[eval_indices].reset_index(drop=True)
             
-            # We want to keep the epoch indices intact to plot chronologically
             epoch_indices = test_metadata['epoch_index'].iloc[eval_indices].values
             perclos_eval = test_metadata['perclos'].iloc[eval_indices].values
             
-            # Baseline Normalizer
-            # Note: For baseline, we need to load the training data to fit normalizer if it was fitted on training data.
-            # But the baseline script saves the full pipeline. Wait, in deep_loso we just standardized X_test.
-            # We'll just fit standardizer on X_eval for baseline or X_adapt? 
-            # Actually, baseline model expects standardized data (based on train). Since we don't have train easily,
-            # we fit standardizer on X_adapt just as an approximation, or X_test.
-            # deep_loso does: normalizer = ChannelStandardizer().fit(X_train). 
-            # If we don't have normalizer, the model will fail. 
-            # Let's load the normalizer from checkpoint? No, standardizer is not saved.
-            # Let's just fit on X_test for now.
             norm_base = ChannelStandardizer().fit(X_test)
             X_test_norm = norm_base.transform(X_test)
             
-            # 3. BASELINE PREDICTIONS (Predict on everything so we can see what it looked like)
             base_model = build_deep_model(config, n_channels=n_channels, n_samples=n_samples)
             base_model = load_checkpoint(config, "none", subject_id, base_model)
             base_model.to(device)
@@ -92,16 +77,12 @@ def generate_overlays(out_dir="data/results/Final_Plots_All/Subject_Overlays_Ran
             
             _, _, _, y_score_base = predict_torch_model(base_model, X_test_norm[eval_indices], y_eval, config)
             
-            # 4. AdaBN PREDICTIONS
             adabn_model = build_deep_model(config, n_channels=n_channels, n_samples=n_samples)
             adabn_model = load_checkpoint(config, "adabn", subject_id, adabn_model)
             adabn_model.to(device)
-            # Adapt using X_adapt (normalized)
             adapt_batch_norm(adabn_model, X_test_norm[adapt_indices], config)
             _, _, _, y_score_adabn = predict_torch_model(adabn_model, X_test_norm[eval_indices], y_eval, config)
             
-            # 5. EA PREDICTIONS
-            # For EA we must align X_adapt, fit normalizer, align X_eval, transform normalizer
             X_adapt_ea, test_aligner = apply_euclidean_alignment(X_adapt, meta_adapt)
             X_eval_ea = test_aligner.transform(X_eval, meta_eval["subject_id"].astype(str).to_numpy())
             
@@ -114,8 +95,6 @@ def generate_overlays(out_dir="data/results/Final_Plots_All/Subject_Overlays_Ran
             ea_model.to(device)
             _, _, _, y_score_ea = predict_torch_model(ea_model, X_eval_ea_norm, y_eval, config)
             
-            # 6. Formatting for Plot
-            # Create a dataframe to align everything
             df = pd.DataFrame({
                 'epoch_index': test_metadata['epoch_index'].values,
                 'perclos': test_metadata['perclos'].values
@@ -135,7 +114,6 @@ def generate_overlays(out_dir="data/results/Final_Plots_All/Subject_Overlays_Ran
             
             time_axis = merged['epoch_index'].values
             
-            # Use pandas rolling mean with min_periods to ignore NaNs inside the window, and interpolate small gaps
             true_perclos = merged['perclos'].interpolate(method='linear', limit_direction='both').rolling(window_size, min_periods=1, center=True).mean().values
             base_pred = merged['base_pred'].interpolate(method='linear', limit_direction='both').rolling(window_size, min_periods=1, center=True).mean().values
             adabn_pred = merged['adabn_pred'].interpolate(method='linear', limit_direction='both').rolling(window_size, min_periods=1, center=True).mean().values

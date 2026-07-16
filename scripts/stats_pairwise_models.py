@@ -50,7 +50,6 @@ def cohen_d_paired(x, y):
 
 
 def holm_bonferroni(pvals):
-    # pvals: array-like
     p = np.array(pvals)
     m = len(p)
     order = np.argsort(p)
@@ -91,7 +90,6 @@ def main():
         if df is None or df.empty:
             print(f'Warning: empty dataframe for {name} at {csvp} -- skipping')
             continue
-        # rename balanced_accuracy column to model name
         df = df.rename(columns={'balanced_accuracy': name})
         dfs[name] = df
 
@@ -99,7 +97,6 @@ def main():
         print('No model data found. Exiting.')
         return
 
-    # merge on test_subject_id
     merged = reduce(lambda a, b: pd.merge(a, b, on='test_subject_id', how='inner'), dfs.values())
     print(f'Merged data shape: {merged.shape}')
     if merged.shape[0] == 0:
@@ -125,13 +122,11 @@ def main():
             std_diff = np.nanstd(diff, ddof=1) if n > 1 else np.nan
             cohen_d = cohen_d_paired(x, y)
 
-            # paired t-test
             try:
                 t_stat, p_t = stats.ttest_rel(x, y, nan_policy='omit')
             except Exception:
                 t_stat, p_t = np.nan, np.nan
 
-            # Wilcoxon signed-rank test (non-parametric)
             try:
                 w_stat, p_w = stats.wilcoxon(x, y)
             except Exception:
@@ -153,7 +148,6 @@ def main():
             })
             pvals.append(p_t if not np.isnan(p_t) else 1.0)
 
-    # Holm-Bonferroni correction for p_t
     adjusted = holm_bonferroni(pvals)
     for rec, adj in zip(records, adjusted):
         rec['p_t_holm'] = adj
@@ -162,7 +156,6 @@ def main():
     out_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(records).to_csv(out_path, index=False)
 
-    # Print summary
     print('\nPairwise comparisons:')
     print('A vs B | n | meanA | meanB | meanDiff | stdDiff | Cohen d | t-stat | p_t | p_t_holm | w-stat | p_w')
     for r in records:

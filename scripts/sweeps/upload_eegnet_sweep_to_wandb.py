@@ -57,7 +57,6 @@ def read_summary_metrics(run_dir):
     if df.empty:
         return {}
     row = df.iloc[0].to_dict()
-    # flatten numeric types to native python
     for k, v in list(row.items()):
         try:
             if pd.isna(v):
@@ -100,7 +99,6 @@ def main():
         summary = read_summary_metrics(p)
 
         metrics = {}
-        # common summary fields
         for key in [
             "balanced_accuracy_mean",
             "f1_mean",
@@ -110,7 +108,6 @@ def main():
             if key in summary:
                 metrics[key] = summary[key]
 
-        # add categorical string representations for discrete axes so W&B shows only actual values
         def _fmt(v):
             try:
                 if v is None:
@@ -121,7 +118,6 @@ def main():
             except Exception:
                 return str(v)
 
-        # create string versions for commonly-swept hyperparams
         for key in (
             "learning_rate",
             "batch_size",
@@ -135,7 +131,6 @@ def main():
         ):
             sval = _fmt(config.get(key))
             config_key = f"{key}_str"
-            # avoid overwriting existing keys
             if config_key not in config:
                 config[config_key] = sval
 
@@ -151,22 +146,17 @@ def main():
             wandb.init(project=args.project, name=run_name, config=config, reinit=True)
         if metrics:
             wandb.log(metrics)
-        # also put metrics in summary for easy filtering
         try:
             wandb.run.summary.update(metrics)
         except Exception:
             pass
 
-        # push the categorical string columns into run.summary so they appear
-        # as string/categorical columns in the project runs table and in panels
         str_keys = [k for k in config.keys() if k.endswith("_str")]
         if str_keys:
             try:
                 for sk in str_keys:
-                    # ensure value is plain python string
                     val = config.get(sk)
                     wandb.run.summary[sk] = None if val is None else str(val)
-                # explicit update
                 wandb.run.summary.update({sk: wandb.run.summary[sk] for sk in str_keys})
             except Exception:
                 pass

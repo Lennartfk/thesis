@@ -28,11 +28,9 @@ def load_adaptation_sweeps(base_dir, sweep_type="fraction"):
         sweep_dirs = ["final_eval_adabn_cv_sweep", "final_eval_ea_cv_sweep"]
         frac_col = "adaptation_target_fraction"
     elif sweep_type == "chronological":
-        # Note: the sweep dir is 'chronological' but the metric inside might be tracked as fraction or time
         sweep_dirs = ["final_eval_adabn_chronological_sweep", "final_eval_ea_chronological_sweep"]
         frac_col = "chronological_minutes"
     elif sweep_type == "fixed_window":
-        # Fixed window has fraction column tracking window size
         sweep_dirs = ["final_eval_adabn_fixed_window_sweep", "final_eval_ea_fixed_window_sweep"]
         frac_col = "valid_minutes"
     elif sweep_type == "sequential_window":
@@ -58,7 +56,6 @@ def load_adaptation_sweeps(base_dir, sweep_type="fraction"):
 
 
 def run_statistical_tests(df_adapt, df_base):
-    # Merge adaptation data with baseline data on subject ID
     df = pd.merge(df_adapt, df_base, on="test_subject_id")
     
     results = []
@@ -71,7 +68,6 @@ def run_statistical_tests(df_adapt, df_base):
             if len(sub) == 0:
                 continue
             
-            # Pingouin paired t-test: alternative='greater' tests if adapt > baseline
             pt = pg.ttest(
                 sub["balanced_accuracy"], 
                 sub["baseline_accuracy"],
@@ -96,7 +92,6 @@ def run_statistical_tests(df_adapt, df_base):
             
     res_df = pd.DataFrame(results)
     
-    # Benjamini-Hochberg FDR correction using Pingouin
     if len(res_df) > 0:
         reject, pvals_corrected = pg.multicomp(res_df["p_value"].values, method='fdr_bh')
         res_df["p_val_corrected"] = pvals_corrected
@@ -111,7 +106,6 @@ def plot_results(stats_df, baseline_mean, baseline_se, out_png, sweep_type="frac
     
     plt.figure(figsize=(8, 5))
     
-    # Plot baseline
     plt.axhline(baseline_mean, color="black", linestyle="--", linewidth=2, label="Baseline EEGNet")
     
     methods = sorted(stats_df["method"].unique())
@@ -122,7 +116,6 @@ def plot_results(stats_df, baseline_mean, baseline_se, out_png, sweep_type="frac
     for method in methods:
         sub = stats_df[stats_df["method"] == method].sort_values("fraction")
         x = sub["fraction"].values
-        # Only scale for original fraction plot
         if sweep_type == "fraction" and in_minutes:
             x = x * 72.724
         y = sub["mean_acc"].values
@@ -136,7 +129,6 @@ def plot_results(stats_df, baseline_mean, baseline_se, out_png, sweep_type="frac
         if error_bars:
             plt.fill_between(x, y - yerr, y + yerr, color=c, alpha=0.15)
         
-        # Mark significant points
         sig = sub[sub["significant"]]
         if not sig.empty:
             sig_x = sig["fraction"].values
@@ -147,7 +139,6 @@ def plot_results(stats_df, baseline_mean, baseline_se, out_png, sweep_type="frac
                 marker="*", color=c, s=150, zorder=5
             )
 
-    # Plot dummy scatter for legend of significance
     plt.scatter([], [], marker="*", color="black", s=150, label="Significant vs Baseline\n(p < 0.05 FDR)")
     
     if sweep_type == "fraction":

@@ -33,7 +33,6 @@ def plot_sweep(df_adapt, df_base, sweep_type, out_png, include_title=True):
     palette = {"ea": "#0072B2", "adabn": "#D55E00"} # Okabe-Ito (Blue, Vermilion)
     markers = {"ea": "o", "adabn": "s"}
     
-    # Plot baseline
     base_mean = df_base["baseline_accuracy"].mean()
     base_se = df_base["baseline_accuracy"].std() / np.sqrt(len(df_base))
     plt.axhline(base_mean, color="#000000", linestyle="--", label="Uncalibrated Baseline", linewidth=3)
@@ -41,11 +40,9 @@ def plot_sweep(df_adapt, df_base, sweep_type, out_png, include_title=True):
                      base_mean - base_se, base_mean + base_se, 
                      color="#000000", alpha=0.1)
                      
-    # Filter out 1.0 (100%) fraction to avoid data leakage evaluation in presentation plots
     if sweep_type == "fraction":
         df_adapt = df_adapt[df_adapt[x_col] < 1.0]
     
-    # Plot adaptation lines
     agg = df_adapt.groupby([x_col, "method"])["balanced_accuracy"].agg(["mean", "std", "count"]).reset_index()
     agg["se"] = agg["std"] / np.sqrt(agg["count"])
     
@@ -67,7 +64,6 @@ def plot_sweep(df_adapt, df_base, sweep_type, out_png, include_title=True):
     plt.ylabel("Mean Balanced Accuracy", weight='bold')
     plt.grid(True, alpha=0.4, linestyle='--')
     
-    # Uniform scales across all plots for easy visual comparison (extended above 0.90 to fit max values)
     plt.ylim(0.65, 0.95)
     
     if sweep_type == "fraction":
@@ -81,9 +77,6 @@ def plot_sweep(df_adapt, df_base, sweep_type, out_png, include_title=True):
     plt.close()
 
 def plot_adaptation_gain(df_adapt, df_base, out_png, include_title=True):
-    # Take the best setting for simplicity, or just average everything?
-    # Usually we want the bar chart of per-subject gain for the *best* adaptation setting.
-    # We will pick the max calibration/fraction.
     max_frac = df_adapt["fraction"].max()
     df_best = df_adapt[np.isclose(df_adapt["fraction"], max_frac)]
     

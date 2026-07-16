@@ -7,7 +7,6 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from pathlib import Path
 
-# Suppress MNE info messages
 mne.set_log_level("WARNING")
 
 def get_covariances(X):
@@ -30,7 +29,6 @@ def generate_scatter_plot(out_path="data/results/Final_Plots_All/Feature_Visuali
     print("Loading data for 5 subjects...")
     epoch_dir = Path("data/SEED_VIG/epoched")
     
-    # Pick 5 distinct subjects manually to ensure variety
     target_subs = ["1_20151124_noon_2-epo.fif", "2_20151106_noon-epo.fif", "6_20151121_noon-epo.fif", "8_20151022_noon-epo.fif", "12_20150928_noon-epo.fif"]
     selected_files = [epoch_dir / f for f in target_subs]
     
@@ -48,11 +46,9 @@ def generate_scatter_plot(out_path="data/results/Final_Plots_All/Feature_Visuali
         idx = np.random.choice(epochs.shape[0], 200, replace=False)
         X = epochs[idx]
         
-        # Raw Covariances
         cov = get_covariances(X)
         feat = extract_features(cov)
         
-        # EA Alignment
         R = np.mean(cov, axis=0)
         R_inv_sqrt = np.real(sqrtm(inv(R))) # Real to avoid complex casting warnings
         X_ea = np.array([np.dot(R_inv_sqrt, x) for x in X])
@@ -66,7 +62,6 @@ def generate_scatter_plot(out_path="data/results/Final_Plots_All/Feature_Visuali
     X_raw = np.vstack(all_feat_raw)
     X_ea = np.vstack(all_feat_ea)
     
-    # Crucial: Standardize features before PCA to prevent one subject's variance from dominating
     scaler_raw = StandardScaler()
     X_raw_scaled = scaler_raw.fit_transform(X_raw)
     
@@ -80,7 +75,6 @@ def generate_scatter_plot(out_path="data/results/Final_Plots_All/Feature_Visuali
     pca_ea = PCA(n_components=2)
     X_ea_2d = pca_ea.fit_transform(X_ea_scaled)
     
-    # Plotting
     print("Plotting...")
     fig = plt.figure(figsize=(14, 6))
     
@@ -99,7 +93,6 @@ def generate_scatter_plot(out_path="data/results/Final_Plots_All/Feature_Visuali
     ax1.legend()
     ax2.legend()
     
-    # Match axes perfectly without forcing a square range
     all_data = np.vstack([X_raw_2d, X_ea_2d])
     
     x_min, x_max = all_data[:, 0].min(), all_data[:, 0].max()

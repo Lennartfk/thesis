@@ -36,7 +36,6 @@ def generate_ea_topomaps(epochs_dir, out_dir):
             epochs_alert = epochs[alert_mask]
             epochs_drowsy = epochs[drowsy_mask]
             
-            # Apply EA per-subject
             ea = EuclideanAlignment()
             X_alert = epochs_alert.get_data(copy=True)
             X_drowsy = epochs_drowsy.get_data(copy=True)
@@ -89,7 +88,6 @@ def main():
         generate_ea_topomaps(args.epochs_dir, args.out_dir)
         
     if args.figure in ["adabn_tsne", "all"]:
-        # Pick Subject 10 as Target, and Subject 11, 12 as Sources just to show the merge
         ckpt_path = "data/results/experiments/23_Subjects_Stable/final_baseline_eegnet/checkpoints/eegnet_subject_10.pt"
         plot_adabn_tsne(
             ckpt_path=ckpt_path,

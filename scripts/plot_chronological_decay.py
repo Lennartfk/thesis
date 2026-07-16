@@ -12,7 +12,6 @@ def load_predictions(base_dir, baseline_dir, cutoff_minutes):
     
     dfs = []
     
-    # 1. Load Baseline
     baseline_pred_file = baseline_dir / "predictions.csv"
     if baseline_pred_file.exists():
         df_base = pd.read_csv(baseline_pred_file)
@@ -20,18 +19,15 @@ def load_predictions(base_dir, baseline_dir, cutoff_minutes):
         df_base["epoch_minutes"] = df_base["epoch_index"] * 8 / 60.0
         if "target" in df_base.columns:
             df_base.rename(columns={"target": "y_true"}, inplace=True)
-        # Calculate accuracy
         df_base["correct"] = (df_base["y_true"] == df_base["y_pred"]).astype(float)
         dfs.append(df_base)
     else:
         print(f"Warning: Baseline predictions not found at {baseline_pred_file}")
         
-    # 2. Load Adaptation Sweeps
     for method_dir in ["final_eval_ea_chronological_sweep", "final_eval_adabn_chronological_sweep"]:
         pred_file = base_dir / method_dir / "predictions.csv"
         if pred_file.exists():
             df_adapt = pd.read_csv(pred_file)
-            # Filter to only the specific cutoff
             df_adapt = df_adapt[np.isclose(df_adapt["chronological_minutes"], cutoff_minutes)].copy()
             if df_adapt.empty:
                 print(f"Warning: No data found for cutoff {cutoff_minutes} in {method_dir}")
@@ -57,12 +53,9 @@ def plot_accuracy_decay(df, cutoff_minutes, out_png, include_title=True):
         print("No data to plot.")
         return
         
-    # Create 5-minute bins for smoothing
     bin_size = 10
     df["time_bin"] = (df["epoch_minutes"] // bin_size) * bin_size + (bin_size / 2)
     
-    # We only care about evaluation period (and baseline)
-    # The adaptation methods only have data AFTER cutoff_minutes
     
     from sklearn.metrics import balanced_accuracy_score
     def safe_bacc(g):
@@ -71,17 +64,13 @@ def plot_accuracy_decay(df, cutoff_minutes, out_png, include_title=True):
         except:
             return np.nan
 
-    # First calculate balanced accuracy per subject, per method, per time_bin
     subject_bacc = df.groupby(["method", "time_bin", "subject_id"]).apply(safe_bacc).reset_index(name="bacc")
     
-    # Drop NaNs
     subject_bacc = subject_bacc.dropna()
     
-    # Now compute the mean and standard error ACROSS SUBJECTS
     agg_df = subject_bacc.groupby(["method", "time_bin"])["bacc"].agg(["mean", "std", "count"]).reset_index()
     agg_df["se"] = agg_df["std"] / np.sqrt(agg_df["count"])
     
-    # Filter out bins with very few subjects (noise)
     agg_df = agg_df[agg_df["count"] >= 3]
     
     sns.set_theme(style="whitegrid", font_scale=1.2)
@@ -93,7 +82,6 @@ def plot_accuracy_decay(df, cutoff_minutes, out_png, include_title=True):
         "EEGNet + AdaBN": "#C44E52"
     }
     
-    # Plot lines with shaded error bounds
     for method in palette.keys():
         m_df = agg_df[agg_df["method"] == method].sort_values("time_bin")
         if m_df.empty:
@@ -110,7 +98,6 @@ def plot_accuracy_decay(df, cutoff_minutes, out_png, include_title=True):
     plt.xlabel("Evaluation Timeline (Minutes into driving session)", fontsize=14)
     plt.ylabel("Balanced Accuracy (Mean ± SEM)", fontsize=14)
     
-    # Calculate min and max y-values for dynamic zooming
     y_min = agg_df["mean"].min() - agg_df["se"].max()
     y_max = agg_df["mean"].max() + agg_df["se"].max()
     y_range = y_max - y_min

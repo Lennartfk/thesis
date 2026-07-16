@@ -4,7 +4,6 @@ import sys
 import subprocess
 from pathlib import Path
 
-# Add project root to PYTHONPATH
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from scripts.plot_3d_surface import plot_3d
@@ -37,18 +36,15 @@ def main():
             print("GENERATING FIGURES WITHOUT TITLES")
             print("=====================================")
             
-        # 1. 3D_Plots
         d_3d = out_root / "3D_Plots"
         os.makedirs(d_3d, exist_ok=True)
         for method in ["ea", "adabn"]:
             out_path = d_3d / f"3D_Chronological_Accuracy_Surface_{method.upper()}.pdf"
             plot_3d(base_results, method=method, include_title=include_title, out_path=str(out_path))
 
-        # 2. Dataset_Stats
         d_stats = out_root / "Dataset_Stats"
         analyze_stats(out_dir=str(d_stats), include_title=include_title)
 
-        # 3. Decay_Over_Time
         d_decay = out_root / "Decay_Over_Time"
         os.makedirs(d_decay, exist_ok=True)
         for cutoff in [10, 30, 60]:
@@ -56,7 +52,6 @@ def main():
             out_png = d_decay / f"Chronological_Decay_Cutoff_{cutoff}m.pdf"
             plot_accuracy_decay(df_decay, cutoff, str(out_png), include_title=include_title)
 
-        # 4 & 10. Domain_Adaptation_Gain & Sweep_Summaries_1D
         d_gain = out_root / "Domain_Adaptation_Gain"
         d_sweep = out_root / "Sweep_Summaries_1D"
         os.makedirs(d_gain, exist_ok=True)
@@ -76,11 +71,9 @@ def main():
                 plot_sweep(df_adapt, df_base, stype, str(d_sweep / fname), include_title=include_title)
                 plot_adaptation_gain(df_adapt, df_base, str(d_gain / f"gain_bar_{stype}.pdf"), include_title=include_title)
 
-        # 5. Feature_Visualizations
         d_feat = out_root / "Feature_Visualizations"
         generate_scatter_plot(out_path=str(d_feat / "ea_scatter_real_data_2d.pdf"), include_title=include_title)
 
-        # 6. Heatmaps
         d_heat = out_root / "Heatmaps"
         os.makedirs(d_heat, exist_ok=True)
         for method in ["ea", "adabn"]:
@@ -101,20 +94,15 @@ def main():
                 include_title=include_title
             )
 
-        # 7. Overview
         d_over = out_root / "Overview"
         os.makedirs(d_over, exist_ok=True)
         
-        # We need the CV, Chrono, and Seq aggregations
-        # EA
         ea_cv = get_stats(pd.read_csv(base_results / 'final_eval_ea_cv_sweep/fold_metrics.csv'), 'adaptation_target_fraction')
         ea_chrono = get_stats(pd.read_csv(base_results / 'final_eval_ea_chronological_sweep/fold_metrics.csv'), 'chronological_minutes')
         ea_seq = get_stats(pd.read_csv(base_results / 'eval_sequential_ea_sequential_window_sweep/fold_metrics.csv'), 'valid_minutes')
-        # AdaBN
         adabn_cv = get_stats(pd.read_csv(base_results / 'final_eval_adabn_cv_sweep/fold_metrics.csv'), 'adaptation_target_fraction')
         adabn_chrono = get_stats(pd.read_csv(base_results / 'final_eval_adabn_chronological_sweep/fold_metrics.csv'), 'chronological_minutes')
         adabn_seq = get_stats(pd.read_csv(base_results / 'eval_sequential_adabn_sequential_window_sweep/fold_metrics.csv'), 'valid_minutes')
-        # Baseline
         base_df = pd.read_csv(base_results / 'final_baseline_eegnet/predictions.csv')
         from sklearn.metrics import balanced_accuracy_score
         sub_accs = [balanced_accuracy_score(sdf['target'], sdf['y_pred']) for s, sdf in base_df.groupby('subject_id')]
@@ -130,7 +118,6 @@ def main():
         env = os.environ.copy()
         env["PYTHONPATH"] = str(Path.cwd())
         
-        # 8. Subject_Overlays
         d_deep = out_root / "Subject_Overlays"
         os.makedirs(d_deep, exist_ok=True)
         cmd_timeline = ["python3", "scripts/plot_timeline.py", "--out-path", str(d_deep / "prediction_timeline_deepdive.pdf")]
@@ -138,11 +125,9 @@ def main():
             cmd_timeline.append("--no-title")
         subprocess.run(cmd_timeline, env=env, check=True)
 
-        # 9. Subject_Overlays_Random_10pct
         d_rand = out_root / "Subject_Overlays_Random_10pct"
         generate_overlays(out_dir=str(d_rand), include_title=include_title)
 
-        # 11. Topomaps
         d_topo = out_root / "Topomaps"
         cmd_topo = ["python3", "scripts/generate_presentation_topomaps.py", "--out-dir", str(d_topo)]
         if not include_title:

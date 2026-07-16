@@ -44,7 +44,6 @@ def load_completed_runs(sweep_dir, config_dir):
             continue
         config = load_trial_config(config_dir, run_dir.name)
         row = {"run_name": run_dir.name}
-        # metric
         if "balanced_accuracy_mean" in summary.columns:
             row["balanced_accuracy_mean"] = float(summary.loc[0, "balanced_accuracy_mean"])
         elif "balanced_accuracy" in summary.columns:
@@ -52,7 +51,6 @@ def load_completed_runs(sweep_dir, config_dir):
         else:
             row["balanced_accuracy_mean"] = None
 
-        # copy hyperparameters from config
         for key in [
             "learning_rate",
             "batch_size",
@@ -86,7 +84,6 @@ def main():
 
     df = load_completed_runs(sweep_dir, config_dir)
 
-    # make columns friendly: string categorical for some, numeric for others
     df["learning_rate"] = df["learning_rate"].astype(float)
     df["batch_size"] = df["batch_size"].astype(int)
     df["weight_decay"] = df["weight_decay"].astype(float)
@@ -97,7 +94,6 @@ def main():
     df["eegnet_separable_kernel_length"] = df["eegnet_separable_kernel_length"].astype(int)
     df["tune_decision_threshold"] = df["tune_decision_threshold"].astype(bool)
 
-    # Lazy import of hiplot so the script fails with a readable message if not installed
     try:
         import hiplot as hp
     except Exception as exc:
