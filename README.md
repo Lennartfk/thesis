@@ -97,6 +97,3 @@ sbatch scripts/slurm/generate_all_pdfs.slurm
   - `features/` - Euclidean Alignment and spatial covariance matrices.
   - `training/` - PyTorch training loops.
   - `visualization/` - Core plotting functions.
-
-## 📜 License
-This project is licensed under the MIT License - see the `LICENSE` file for details.
