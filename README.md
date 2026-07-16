@@ -2,8 +2,8 @@
 
 This repository contains the complete codebase for the Bachelor's thesis evaluating unsupervised domain adaptation methods on EEG data. Specifically, we investigate whether techniques like **Euclidean Alignment (EA)** and **Adaptive Batch Normalization (AdaBN)** can improve the cross-subject generalization of a deep learning model (EEGNet) for mental fatigue detection using the publicly available SEED-VIG dataset.
 
-A key contribution of this repository is the evaluation of these methods under realistic, strictly chronological calibration protocols:
-- **Random Sampling (Idealized)**: Random subsets of target data (often violating causality).
+Three calibration protocols are evaluated:
+- **Random Sampling**: Random subsets of target data.
 - **Chronological Calibration**: Using the first $N$ minutes of a subject's recording.
 - **Sequential Window Calibration**: Sliding a fixed-size calibration window continuously over the data.
 
