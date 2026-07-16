@@ -52,7 +52,7 @@ def adapt_batch_norm(model, X_target_unlabeled, config):
     loader = DataLoader(
         dataset,
         batch_size=config.batch_size,
-        shuffle=False,
+        shuffle=True,
         num_workers=config.num_workers,
     )
 

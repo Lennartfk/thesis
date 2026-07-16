@@ -46,7 +46,15 @@ def parse_args():
 
 
 def parse_subject_id(recording_name):
-    return recording_name.split("_", 1)[0]
+    rec_str = str(recording_name)
+    base_id = rec_str.split("_", 1)[0]
+    
+    if "4_20151105" in rec_str: return "4_1"
+    if "4_20151107" in rec_str: return "4_2"
+    if "5_20141108" in rec_str: return "5_1"
+    if "5_20151012" in rec_str: return "5_2"
+    
+    return base_id
 
 
 def clean_column_token(name):

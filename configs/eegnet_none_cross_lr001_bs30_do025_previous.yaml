@@ -12,12 +12,12 @@ adaptation_name: none
 seed: 42
 alert_threshold: 0.35
 drowsy_threshold: 0.70
-loso_protocol: leave_one_subject_out_cyclic_subject_val
-validation_subject_strategy: cyclic_next_subject
+loso_protocol: leave_one_subject_out_previous_subject_val
+validation_subject_strategy: previous_subject
 within_subject_split_strategy: stratified
 normalization: channel_standard
+batch_size: 30
 exclude_imbalanced_subjects: false
-batch_size: 64
 learning_rate: 0.001
 weight_decay: 0.0001
 max_epochs: 100
@@ -30,5 +30,5 @@ threshold_metric: balanced_accuracy
 decision_threshold: 0.5
 eegnet_f1: 8
 eegnet_depth_multiplier: 2
-eegnet_dropout: 0.5
+eegnet_dropout: 0.25
 register_model: true

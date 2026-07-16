@@ -8,7 +8,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import mlflow
 
-from src.data.load_data import load_labeled_features
+from src.data.prepare import prepare_epoch_dataset, prepare_feature_dataset
 from src.experiments.evaluate import aggregate_fold_metrics
 from src.experiments.loso import run_loso_experiment
 from src.tracking.artifacts import collect_artifacts
@@ -19,6 +19,7 @@ from src.tracking.mlflow_utils import (
     log_dataset_metadata,
     log_epoch_history,
     log_fold_metrics,
+    log_subject_balance_metadata,
     register_logged_model,
     log_summary_metrics,
 )
@@ -68,29 +69,23 @@ def run_experiment(config):
     with mlflow.start_run(run_name=run_name):
         run_id = mlflow.active_run().info.run_id
         log_config(config)
+        if config.register_model and not config.log_models:
+            raise ValueError("register_model=True requires log_models=True.")
 
         if config.model_family == "sklearn":
-            df, feature_columns, dropped_columns = load_labeled_features(
-                config.feature_path,
-                alert_threshold=config.alert_threshold,
-                drowsy_threshold=config.drowsy_threshold,
-            )
+            dataset = prepare_feature_dataset(config)
+            df = dataset.df
+            feature_columns = dataset.feature_columns
             fold_metrics, predictions = run_loso_experiment(df, feature_columns, config)
             history = None
-            feature_count = len(feature_columns)
+            feature_count = dataset.feature_count
             extra_artifacts = []
         elif config.model_family == "deep":
-            from src.data.eeg_dataset import build_epoch_index
             from src.experiments.deep_loso import run_deep_loso_experiment
             from src.experiments.deep_within_subject import run_deep_within_subject_experiment
 
-            df = build_epoch_index(
-                config.epoch_dir,
-                alert_threshold=config.alert_threshold,
-                drowsy_threshold=config.drowsy_threshold,
-            )
-            feature_columns = []
-            dropped_columns = []
+            dataset = prepare_epoch_dataset(config)
+            df = dataset.df
 
             if config.eval_protocol == "within_subject":
                 fold_metrics, predictions, history, deep_metadata = run_deep_within_subject_experiment(df, config, output_dir)
@@ -110,6 +105,13 @@ def run_experiment(config):
         else:
             raise ValueError(f"Unknown model_family '{config.model_family}'. Use 'sklearn' or 'deep'.")
 
+        df = dataset.df
+        raw_df = dataset.raw_df
+        feature_columns = dataset.feature_columns
+        dropped_columns = dataset.dropped_columns
+        subject_balance = dataset.subject_balance
+        excluded_subjects = dataset.excluded_subjects
+
         summary = aggregate_fold_metrics(fold_metrics)
         artifacts = collect_artifacts(
             output_dir,
@@ -119,9 +121,12 @@ def run_experiment(config):
             summary,
             save_plots=config.save_plots,
             history=history,
+            subject_balance=subject_balance,
+            excluded_subjects=excluded_subjects,
         )
         artifacts.extend(extra_artifacts)
 
+        log_subject_balance_metadata(config, raw_df, df, subject_balance, excluded_subjects)
         log_dataset_metadata(config, df, feature_columns, fold_metrics, dropped_columns, feature_count=feature_count)
         log_fold_metrics(fold_metrics)
         log_epoch_history(history)
@@ -156,6 +161,67 @@ def run_experiment(config):
 
 def main():
     config = parse_experiment_args()
+
+    # Optional: run adaptation fraction sweep from the experiments entrypoint
+    if getattr(config, "adaptation_fraction_cv_sweep", False):
+        from src.experiments.evaluate_fraction_cv import run_fraction_cv_sweep
+
+        # parse fractions/methods from comma-separated strings if provided
+        if getattr(config, "adaptation_fraction_sweep_fractions", None):
+            fractions = [float(f.strip()) for f in config.adaptation_fraction_sweep_fractions.split(",") if f.strip()]
+        else:
+            fractions = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+
+        if getattr(config, "adaptation_fraction_sweep_methods", None):
+            methods = [m.strip() for m in config.adaptation_fraction_sweep_methods.split(",") if m.strip()]
+        else:
+            methods = ["ea", "adabn"]
+
+        run_fraction_cv_sweep(config, fractions=fractions, methods=methods)
+        return
+        
+    if getattr(config, "chronological_sweep", False):
+        from src.experiments.evaluate_chronological import run_chronological_sweep
+        
+        minutes_list = [5, 10, 15, 20, 30, 45, 60, 90]
+        methods = ["ea", "adabn"]
+        run_chronological_sweep(config, minutes_list=minutes_list, methods=methods)
+        return
+        
+    if getattr(config, "fixed_window_sweep", False):
+        from src.experiments.evaluate_fixed_window import run_fixed_window_sweep
+        
+        minutes_list = [5, 10, 15, 20, 30, 45, 60, 90]
+        methods = ["ea", "adabn"]
+        run_fixed_window_sweep(config, valid_minutes_list=minutes_list, methods=methods)
+        return
+
+    if getattr(config, "sequential_window_sweep", False):
+        from src.experiments.evaluate_sequential_window import run_sequential_window_sweep
+        
+        minutes_list = [5, 10, 15, 20, 30, 45, 60, 90]
+        methods = ["ea", "adabn"]
+        run_sequential_window_sweep(config, valid_minutes_list=minutes_list, methods=methods)
+        return
+
+    if getattr(config, "adaptation_fraction_sweep", False):
+        from src.experiments.adaptation_fraction_sweep import run_fraction_sweep
+
+        # parse fractions/methods from comma-separated strings if provided
+        if getattr(config, "adaptation_fraction_sweep_fractions", None):
+            fractions = [float(f.strip()) for f in config.adaptation_fraction_sweep_fractions.split(",") if f.strip()]
+        else:
+            fractions = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+
+        if getattr(config, "adaptation_fraction_sweep_methods", None):
+            methods = [m.strip() for m in config.adaptation_fraction_sweep_methods.split(",") if m.strip()]
+        else:
+            methods = ["ea", "adabn"]
+
+        summary_name = getattr(config, "adaptation_fraction_sweep_summary_name", None)
+        run_fraction_sweep(config, fractions=fractions, methods=methods, summary_name=summary_name)
+        return
+
     run_experiment(config)
 
 

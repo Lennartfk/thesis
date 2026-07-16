@@ -188,10 +188,14 @@ def run_loso_experiment(df, feature_columns, config):
         metrics = binary_metrics(y_test, y_pred)
         metrics["roc_auc"] = safe_roc_auc(y_test, y_score)
         metrics.update(confusion_counts(y_test, y_pred))
+        train_subjects = sorted(train_df["subject_id"].astype(str).unique(), key=subject_sort_key)
         metrics.update(
             {
                 "fold": fold_index,
                 "subject_id": subject_id,
+                "test_subject_id": subject_id,
+                "val_subject_id": "",
+                "train_subjects": ",".join(train_subjects),
                 "n_train": len(train_df),
                 "n_test": len(test_df),
                 "n_train_alert": int((y_train == 0).sum()),

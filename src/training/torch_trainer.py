@@ -8,7 +8,7 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
-from src.experiments.evaluate import binary_metrics, safe_roc_auc
+from src.experiments.evaluate import binary_metrics, binary_predictions_from_scores, safe_roc_auc
 
 
 def resolve_device(device):
@@ -29,7 +29,7 @@ def class_weights_from_labels(y, n_classes=2):
     return weights.astype(np.float32)
 
 
-def run_epoch(model, loader, criterion, device, optimizer=None):
+def run_epoch(model, loader, criterion, device, optimizer=None, decision_threshold=0.5):
     is_train = optimizer is not None
     model.train(is_train)
 
@@ -54,14 +54,15 @@ def run_epoch(model, loader, criterion, device, optimizer=None):
                 optimizer.step()
 
         probabilities = torch.softmax(logits.detach(), dim=1)
-        predictions = torch.argmax(probabilities, dim=1)
+        scores = probabilities[:, 1].cpu().numpy()
+        predictions = binary_predictions_from_scores(scores, threshold=decision_threshold)
 
         batch_size = y_batch.size(0)
         total_loss += float(loss.detach().cpu()) * batch_size
         total_samples += batch_size
         y_true.append(y_batch.detach().cpu().numpy())
-        y_pred.append(predictions.cpu().numpy())
-        y_score.append(probabilities[:, 1].cpu().numpy())
+        y_pred.append(predictions)
+        y_score.append(scores)
 
     y_true = np.concatenate(y_true)
     y_pred = np.concatenate(y_pred)
@@ -153,11 +154,20 @@ def train_torch_model(model, X_train, y_train, X_val, y_val, config):
     return model, pd.DataFrame(history), training_info
 
 
-def predict_torch_model(model, X, y, config):
+def predict_torch_model(model, X, y, config, decision_threshold=None):
     device = resolve_device(config.device)
     print(f"Predicting on device: {device}")
     model = model.to(device)
     criterion = nn.CrossEntropyLoss()
     loader = make_loader(X, y, config.batch_size, shuffle=False, num_workers=config.num_workers)
-    metrics, y_true, y_pred, y_score = run_epoch(model, loader, criterion, device, optimizer=None)
+    if decision_threshold is None:
+        decision_threshold = config.decision_threshold
+    metrics, y_true, y_pred, y_score = run_epoch(
+        model,
+        loader,
+        criterion,
+        device,
+        optimizer=None,
+        decision_threshold=decision_threshold,
+    )
     return metrics, y_true, y_pred, y_score

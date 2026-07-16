@@ -2,7 +2,6 @@ import argparse
 from pathlib import Path
 
 import mne
-import numpy as np
 
 from load_labels import load_perclos_labels
 from seedvig_loader import EPOCHED_DIR, PROCESSED_DIR

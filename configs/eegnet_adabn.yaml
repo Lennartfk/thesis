@@ -16,6 +16,7 @@ drowsy_threshold: 0.70
 loso_protocol: leave_one_subject_out_cyclic_subject_val
 validation_subject_strategy: cyclic_next_subject
 normalization: channel_standard
+exclude_imbalanced_subjects: false
 batch_size: 64
 learning_rate: 0.001
 weight_decay: 0.0001
@@ -24,6 +25,9 @@ patience: 15
 device: auto
 num_workers: 0
 use_class_weights: true
+tune_decision_threshold: false
+threshold_metric: balanced_accuracy
+decision_threshold: 0.5
 eegnet_f1: 8
 eegnet_depth_multiplier: 2
 eegnet_dropout: 0.5

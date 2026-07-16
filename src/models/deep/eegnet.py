@@ -129,6 +129,10 @@ def build_eegnet(
     f1=8,
     depth_multiplier=2,
     f2=None,
+    temporal_kernel_length=64,
+    separable_kernel_length=16,
+    pool1_kernel=4,
+    pool2_kernel=8,
 ):
     torch.manual_seed(seed)
     return EEGNet(
@@ -139,4 +143,8 @@ def build_eegnet(
         f1=f1,
         depth_multiplier=depth_multiplier,
         f2=f2,
+        temporal_kernel_length=temporal_kernel_length,
+        separable_kernel_length=separable_kernel_length,
+        pool1_kernel=pool1_kernel,
+        pool2_kernel=pool2_kernel,
     )

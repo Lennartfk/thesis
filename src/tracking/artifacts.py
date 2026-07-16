@@ -29,17 +29,35 @@ def save_tables(output_dir, fold_metrics, predictions, summary):
 
     # Save detailed per-fold summary table if train/val/test columns are present
     if not fold_metrics.empty and "test_subject_id" in fold_metrics.columns:
-        fold_summary = fold_metrics.loc[
-            :, [
-                "fold",
-                "train_subjects",
-                "val_subject_id",
-                "test_subject_id",
-                "accuracy",
-                "balanced_accuracy",
-                "f1",
-            ]
-        ].rename(columns={"val_subject_id": "val_subject", "test_subject_id": "test_subject"})
+        summary_columns = [
+            "fold",
+            "train_subjects",
+            "val_subject_id",
+            "test_subject_id",
+            "accuracy",
+            "balanced_accuracy",
+            "precision",
+            "recall",
+            "f1",
+            "roc_auc",
+            "decision_threshold",
+            "threshold_metric",
+            "threshold_val_metric",
+            "tn",
+            "fp",
+            "fn",
+            "tp",
+            "n_test_alert",
+            "n_test_drowsy",
+            "n_pred_alert",
+            "n_pred_drowsy",
+            "true_drowsy_rate",
+            "pred_drowsy_rate",
+        ]
+        available_columns = [column for column in summary_columns if column in fold_metrics.columns]
+        fold_summary = fold_metrics.loc[:, available_columns].rename(
+            columns={"val_subject_id": "val_subject", "test_subject_id": "test_subject"}
+        )
         fold_summary.to_csv(paths["fold_summary"], index=False)
     return paths
 
@@ -107,6 +125,18 @@ def save_class_balance(output_dir, df):
     )
     balance.to_csv(artifact_path, index=False)
     return artifact_path
+
+
+def save_subject_balance_reports(output_dir, subject_balance, excluded_subjects):
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    balance_path = output_path / "subject_balance_filter_report.csv"
+    excluded_path = output_path / "excluded_subjects.csv"
+
+    subject_balance.to_csv(balance_path, index=False)
+    excluded_subjects.to_csv(excluded_path, index=False)
+    return [balance_path, excluded_path]
 
 
 def _save_test_metric_bar(output_dir, fold_metrics, metric, filename):
@@ -440,9 +470,21 @@ def save_binary_prediction_timelines(output_dir, predictions):
     return artifact_path
 
 
-def collect_artifacts(output_dir, df, fold_metrics, predictions, summary, save_plots=True, history=None):
+def collect_artifacts(
+    output_dir,
+    df,
+    fold_metrics,
+    predictions,
+    summary,
+    save_plots=True,
+    history=None,
+    subject_balance=None,
+    excluded_subjects=None,
+):
     paths = list(save_tables(output_dir, fold_metrics, predictions, summary).values())
     paths.append(save_class_balance(output_dir, df))
+    if subject_balance is not None and excluded_subjects is not None:
+        paths.extend(save_subject_balance_reports(output_dir, subject_balance, excluded_subjects))
     paths.append(save_training_history(output_dir, history))
 
     if save_plots and not predictions.empty:

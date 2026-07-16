@@ -1,0 +1,4 @@
+{
+  "adaptation_fraction_cv_sweep": true,
+  "adaptation_fraction_sweep_methods": "adabn"
+}

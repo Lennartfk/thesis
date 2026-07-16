@@ -34,6 +34,12 @@ thesis/
 # Dataset
 data/SEED_VIG/
 SEED_VIG/
+wandb/
+data/results/
+logs/
+LICENSE
+mlruns_sweeps/
+configs/sweeps/
 
 # Local MNE config/cache used for sandboxed test runs
 .mne_home/
@@ -48,6 +54,7 @@ mlruns/
 *.csv
 *.pt
 *.html 
+*.pdf
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

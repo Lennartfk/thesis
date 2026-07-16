@@ -1,13 +1,12 @@
 from pathlib import Path
 from time import perf_counter
 
-import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import torch
 
-from src.data.eeg_dataset import ChannelStandardizer, infer_epoch_shape, load_epochs_from_index
-from src.experiments.evaluate import binary_metrics, confusion_counts, safe_roc_auc
+from src.data.epochs import ChannelStandardizer, infer_epoch_shape, load_epochs_from_index
+from src.experiments.evaluate import binary_metrics, confusion_counts, safe_roc_auc, select_binary_threshold
 from src.experiments.loso import iter_within_subject_splits
 from src.models.deep.eegnet import build_eegnet
 from src.training.torch_trainer import predict_torch_model, train_torch_model
@@ -26,6 +25,10 @@ def build_deep_model(config, n_channels, n_samples):
         dropout=config.eegnet_dropout,
         f1=config.eegnet_f1,
         depth_multiplier=config.eegnet_depth_multiplier,
+        temporal_kernel_length=config.eegnet_temporal_kernel_length,
+        separable_kernel_length=config.eegnet_separable_kernel_length,
+        pool1_kernel=config.eegnet_pool1_kernel,
+        pool2_kernel=config.eegnet_pool2_kernel,
     )
 
 
@@ -88,11 +91,38 @@ def run_deep_within_subject_experiment(epoch_index, config, output_dir):
         model = build_deep_model(config, n_channels=n_channels, n_samples=n_samples)
         fold_start = perf_counter()
         model, history, training_info = train_torch_model(model, X_train, y_train, X_val, y_val, config)
-        test_metrics, _, y_pred, y_score = predict_torch_model(model, X_test, y_test, config)
+        _, _, _, y_val_score = predict_torch_model(
+            model,
+            X_val,
+            y_val,
+            config,
+            decision_threshold=config.decision_threshold,
+        )
+        if config.tune_decision_threshold:
+            decision_threshold, threshold_val_metric, threshold_val_metrics = select_binary_threshold(
+                y_val,
+                y_val_score,
+                metric=config.threshold_metric,
+                default_threshold=config.decision_threshold,
+            )
+        else:
+            decision_threshold = config.decision_threshold
+            threshold_val_metric = None
+            threshold_val_metrics = {}
+
+        test_metrics, _, y_pred, y_score = predict_torch_model(
+            model,
+            X_test,
+            y_test,
+            config,
+            decision_threshold=decision_threshold,
+        )
 
         metrics = binary_metrics(y_test, y_pred)
         metrics["roc_auc"] = safe_roc_auc(y_test, y_score)
         metrics.update(confusion_counts(y_test, y_pred))
+        n_pred_alert = int((y_pred == 0).sum())
+        n_pred_drowsy = int((y_pred == 1).sum())
 
         metrics.update(
             {
@@ -111,10 +141,23 @@ def run_deep_within_subject_experiment(epoch_index, config, output_dir):
                 "n_val_drowsy": int((y_val == 1).sum()),
                 "n_test_alert": int((y_test == 0).sum()),
                 "n_test_drowsy": int((y_test == 1).sum()),
+                "n_pred_alert": n_pred_alert,
+                "n_pred_drowsy": n_pred_drowsy,
+                "true_drowsy_rate": float((y_test == 1).mean()),
+                "pred_drowsy_rate": float((y_pred == 1).mean()),
                 "fold_seconds": perf_counter() - fold_start,
                 "best_epoch": training_info["best_epoch"],
                 "best_val_metric_name": training_info["best_val_metric_name"],
                 "best_val_metric": training_info["best_val_metric"],
+                "decision_threshold": decision_threshold,
+                "threshold_tuned": config.tune_decision_threshold,
+                "threshold_metric": config.threshold_metric,
+                "threshold_val_metric": threshold_val_metric,
+                "threshold_val_accuracy": threshold_val_metrics.get("accuracy"),
+                "threshold_val_balanced_accuracy": threshold_val_metrics.get("balanced_accuracy"),
+                "threshold_val_precision": threshold_val_metrics.get("precision"),
+                "threshold_val_recall": threshold_val_metrics.get("recall"),
+                "threshold_val_f1": threshold_val_metrics.get("f1"),
                 "trained_epochs": training_info["trained_epochs"],
                 "training_seconds": training_info["training_seconds"],
                 "device": training_info["device"],
@@ -138,17 +181,20 @@ def run_deep_within_subject_experiment(epoch_index, config, output_dir):
         predictions["y_score"] = y_score
         prediction_rows.append(predictions)
 
-        checkpoint_paths.append(save_checkpoint(output_dir, test_subject_id, fold_index, model))
-        log_torch_model(
-            model,
-            input_example=torch.zeros((1, n_channels, n_samples), dtype=torch.float32),
-            artifact_path=f"models_fold_{fold_index:02d}",
-        )
+        if config.save_checkpoints:
+            checkpoint_paths.append(save_checkpoint(output_dir, test_subject_id, fold_index, model))
+        if config.log_models:
+            log_torch_model(
+                model,
+                input_example=torch.zeros((1, n_channels, n_samples), dtype=torch.float32),
+                artifact_path=f"models_fold_{fold_index:02d}",
+            )
 
         print(
             f"[{fold_index:02d}] subject={test_subject_id} "
             f"acc={metrics['accuracy']:.3f} bal_acc={metrics['balanced_accuracy']:.3f} "
-            f"f1={metrics['f1']:.3f} best_epoch={training_info['best_epoch']}"
+            f"f1={metrics['f1']:.3f} threshold={decision_threshold:.3f} "
+            f"best_epoch={training_info['best_epoch']}"
         )
 
     fold_metrics = pd.DataFrame(fold_rows)
